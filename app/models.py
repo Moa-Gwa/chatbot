@@ -26,11 +26,11 @@ class LocalEmbedder:
 
 def analyzer() -> ChatGoogleGenerativeAI:
     """질문 분석용. JSON으로만 답하게 함"""
-    return ChatGoogleGenerativeAI(model=config.CHAT_MODEL, google_api_key=KEY, temperature=0,
+    # gemini-3.5-flash-lite는 샘플링 값이 고정이라 temperature를 지정해도 무시됨(docs/decisions.md 6장)
+    return ChatGoogleGenerativeAI(model=config.CHAT_MODEL, google_api_key=KEY,
                                   response_mime_type="application/json", max_retries=2, timeout=20)
 
 
 def writer() -> ChatGoogleGenerativeAI:
     """답변 작성용. 글자 단위로 스트리밍"""
-    return ChatGoogleGenerativeAI(model=config.CHAT_MODEL, google_api_key=KEY, temperature=0.2,
-                                  max_retries=2, timeout=60)
+    return ChatGoogleGenerativeAI(model=config.CHAT_MODEL, google_api_key=KEY, max_retries=2, timeout=60)

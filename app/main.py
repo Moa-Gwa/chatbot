@@ -17,7 +17,7 @@ from pydantic import BaseModel, Field
 
 from app import config, prompts
 from app.corpus import Doc, load_aliases, load_docs
-from app.graph import build, unverified
+from app.graph import build, cited, unverified
 from app.index import Index
 
 log = logging.getLogger(__name__)
@@ -155,7 +155,9 @@ def sse(svc: Service, thread_id: str, payload) -> StreamingResponse:
                 log.warning("자료에 없는 연락처나 링크 %d건", len(checks))
             # 질문 원문은 남기지 않고 처리 결과만 기록
             log.info("chat done grounded=%s ms=%d", state.get("grounded"), (time.monotonic() - started) * 1000)
-            yield event("done", {"grounded": bool(state.get("grounded")), "unverified": checks})
+            answer = state.get("answer", "")
+            yield event("done", {"grounded": bool(state.get("grounded")), "unverified": checks,
+                                 "cited": cited(answer, len(state.get("sources", [])))})
         except Exception:
             log.exception("chat failed")
             yield event("error", {"code": "UPSTREAM", "message": "잠시 후 다시 시도해 주세요."})

@@ -31,7 +31,7 @@ def test_clear_question_streams_understood_sources_answer_and_done(index):
     assert names[0] == "understood" and names[1] == "sources" and names[-1] == "done"
     assert result[1][1][0]["url"].endswith("certificate.do")
     assert "".join(d["text"] for n, d in result if n == "token") == "문의처 학생지원팀 02-2164-4732 [1]"
-    assert result[-1][1] == {"grounded": True, "unverified": []}
+    assert result[-1][1] == {"grounded": True, "unverified": [], "cited": [1]}
 
 
 def test_ambiguous_question_pauses_then_answers_the_chosen_interpretation(index):
@@ -73,7 +73,7 @@ def test_weak_evidence_goes_to_fallback_and_invented_numbers_are_flagged(index, 
     monkeypatch.setattr(graph, "GROUND_MIN_SIMILARITY", 1.1)
     with client(index, fake_model(CLEAR), fake_model("확인되지 않아요. 02-9999-0000으로 문의하세요")) as c:
         done = events(c.post("/v1/chat", json={"question": "증명서"}))[-1]
-    assert done == ("done", {"grounded": False, "unverified": ["02-9999-0000"]})
+    assert done == ("done", {"grounded": False, "unverified": ["02-9999-0000"], "cited": []})
 
 
 def test_requests_need_the_internal_token_and_a_ready_index(index, monkeypatch):

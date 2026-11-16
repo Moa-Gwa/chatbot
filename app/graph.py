@@ -34,7 +34,6 @@ class State(TypedDict, total=False):
     needs_confirm: bool  # 학생에게 해석을 확인받을지. 그래프 분기와 API 이벤트가 함께 씀
     retry: bool
     sources: list[Doc]  # 번호 순서 = 답변의 [n]
-    aliases: list[str]
     grounded: bool
     answer: str
 
@@ -52,9 +51,14 @@ def _content(message) -> str:
     return content
 
 
-def source_block(sources: list[Doc]) -> str:
-    return "\n\n".join(f"[{i}] {d.title}\n{d.text}" + (f"\n원문: {d.url}" if d.url else "")
+def source_block(sources: list[Doc], annotate=lambda text: text) -> str:
+    return "\n\n".join(f"[{i}] {d.title}\n{annotate(d.text)}" + (f"\n원문: {d.url}" if d.url else "")
                        for i, d in enumerate(sources, 1))
+
+
+def cited(answer: str, count: int) -> list[int]:
+    """답변이 실제로 인용한 근거 번호. 화면에는 이것만 보여 줌"""
+    return sorted({int(n) for n in re.findall(r"\[(\d+)\]", answer) if 1 <= int(n) <= count})
 
 
 def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpointer: BaseCheckpointSaver):
@@ -99,13 +103,11 @@ def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpoi
         for contact in index.contacts_for(evidence, state["campus"]) + [h.doc for h in hits if h.doc.group == "contact"]:
             if contact not in sources:
                 sources.append(contact)
-        aliases = [f"'{a.old}' → 지금 '{a.new}'" for a in index.aliases_in([d.text for d in sources]) if a.new]
         grounded = any(h.similarity >= GROUND_MIN_SIMILARITY for h in evidence)
-        return {"sources": sources, "aliases": aliases, "grounded": grounded}
+        return {"sources": sources, "grounded": grounded}
 
     def write(template: str, state: State) -> State:
-        aliases = "[부서명 안내]\n" + "\n".join(state["aliases"]) + "\n\n" if state.get("aliases") else ""
-        prompt = template.format(aliases=aliases, sources=source_block(state["sources"]), question=state["interpretation"])
+        prompt = template.format(sources=source_block(state["sources"], index.annotate), question=state["interpretation"])
         return {"answer": _content(writer.invoke(prompt))}
 
     def answer(state: State) -> State:

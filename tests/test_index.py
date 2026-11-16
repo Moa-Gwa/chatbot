@@ -31,7 +31,8 @@ def test_addenda_only_when_asked_and_contacts_filtered_by_campus(index):
 def test_old_department_names_map_to_current_contacts(index):
     hits = [h for h in index.search("군휴학 입영통지서") if h.doc.id == "site2-0"]
     assert [c.id for c in index.contacts_for(hits)] == ["contact-0"]
-    assert [a.old for a in index.aliases_in(["문의: 학사지원팀"])] == ["학사지원팀"]
+    assert index.annotate("학사지원팀에 방문 제출") == "학사지원팀(지금 문의처: 학사행정팀)에 방문 제출"
+    assert index.annotate("학사행정팀에 문의") == "학사행정팀에 문의"
 
 
 def test_cache_reuses_vectors_and_only_embeds_changed_docs(tmp_path):
@@ -83,3 +84,9 @@ def test_department_with_work_description_still_finds_its_contact(tmp_path):
     index.build()
     hits = [h for h in index.search("장학금 안내") if h.doc.id == "site8-0"]
     assert [c.id for c in index.contacts_for(hits)] == ["contact-1"]
+
+
+def test_annotation_keeps_the_old_name_when_a_unit_moved_into_another_team(tmp_path):
+    from app.corpus import Alias
+    index = Index(DOCS, [Alias("보건실", "학생지원팀", "번호가 다른 부서로 옮겨감", "4126")], FakeEmbedder(), tmp_path)
+    assert index.annotate("보건실 위치는 니콜스관") == "보건실(지금 문의처: 학생지원팀) 위치는 니콜스관"

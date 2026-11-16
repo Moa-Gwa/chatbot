@@ -2,6 +2,7 @@
 import hashlib
 import logging
 import math
+import re
 from collections import Counter, defaultdict
 from dataclasses import dataclass
 from pathlib import Path
@@ -99,6 +100,10 @@ class Index:
         self.keyword = Keyword([f"{d.title} {d.title} {d.text}" for d in docs])
         self.groups = np.array([d.group for d in docs])
         self.addenda = np.array([d.kind == "addenda" for d in docs])
+        self._current = {a.old: a.new for a in aliases if a.new and a.new != a.old}
+        # 긴 이름부터 맞춰 "교육대학원, 교회법대학원 교학팀"이 "교학팀"보다 먼저 잡히게 함
+        names = sorted(self._current, key=len, reverse=True)
+        self._alias_pattern = re.compile("|".join(map(re.escape, names))) if names else None
 
     def build(self) -> None:
         """임베딩 파일을 읽고 빠진 문서만 계산. 실패하면 /readyz로 알리고 요청은 503으로 거절"""
@@ -129,6 +134,7 @@ class Index:
             self._save(known)
         matrix = np.stack([known[h] for h in digests]).astype(np.float32) if digests else np.zeros((0, 1), np.float32)
         self.vectors = matrix / np.clip(np.linalg.norm(matrix, axis=1, keepdims=True), 1e-12, None)
+        self.embedder.embed_query("워밍업")  # 첫 요청에서 모델을 데우느라 늦어지지 않게 미리 한 번 실행
         self.ready = True
 
     def _save(self, known: dict[str, np.ndarray]) -> None:
@@ -185,6 +191,8 @@ class Index:
         found.sort(key=lambda d: wanted.index(d.department))
         return found[:limit]
 
-    def aliases_in(self, texts: list[str]) -> list[Alias]:
-        joined = "\n".join(texts)
-        return [a for a in self.aliases if a.old in joined]
+    def annotate(self, text: str) -> str:
+        """본문의 옛 부서명 뒤에 지금 문의처를 덧붙임. 번호가 같다는 근거뿐이라 이름을 지우지는 않음(data/README.md)"""
+        if not self._alias_pattern:
+            return text
+        return self._alias_pattern.sub(lambda m: f"{m.group(0)}(지금 문의처: {self._current[m.group(0)]})", text)
