@@ -91,7 +91,7 @@ class Keyword:
 
 class Index:
     def __init__(self, docs: list[Doc], aliases: list[Alias], embedder: Embedder, data_dir: Path):
-        self.docs, self.aliases, self.embedder = docs, aliases, embedder
+        self.docs, self.embedder = docs, embedder
         # 로컬에서 미리 계산해 커밋한 파일. 운영은 읽기만 함(scripts/build_embeddings.py)
         self.cache = data_dir / f"embeddings-{embedder.name}.npz"
         self.embedded, self.ready, self.error = 0, False, None
@@ -177,10 +177,7 @@ class Index:
 
     def current_department(self, name: str) -> str:
         """옛 부서명이면 지금 부서명으로 바꿈(대조표에 지금 부서가 있을 때만)"""
-        for a in self.aliases:
-            if a.old == name and a.new:
-                return a.new
-        return name
+        return self._current.get(name, name)
 
     def contacts_for(self, hits: list[Hit], campus: str = "성심", limit: int = 2) -> list[Doc]:
         """고른 홈페이지 안내의 담당부서로 전화번호부를 다시 찾아 문의처를 보강"""

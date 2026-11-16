@@ -58,7 +58,9 @@ def source_block(sources: list[Doc], annotate=lambda text: text) -> str:
 
 def cited(answer: str, count: int) -> list[int]:
     """답변이 실제로 인용한 근거 번호. 화면에는 이것만 보여 줌"""
-    return sorted({int(n) for n in re.findall(r"\[(\d+)\]", answer) if 1 <= int(n) <= count})
+    # "[1]"뿐 아니라 "[1, 9]"처럼 한 괄호에 묶어 쓴 번호도 읽음
+    numbers = (int(n) for group in re.findall(r"\[(\d+(?:\s*,\s*\d+)*)\]", answer) for n in group.split(","))
+    return sorted({n for n in numbers if 1 <= n <= count})
 
 
 def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpointer: BaseCheckpointSaver):

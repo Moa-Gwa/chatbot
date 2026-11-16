@@ -18,3 +18,4 @@ def test_invented_numbers_and_links_are_reported():
 
 def test_only_cited_source_numbers_within_range_are_returned():
     assert cited("학생지원팀에 문의하세요 [1]. 발급 방법 [3][1], 없는 번호 [9]", count=4) == [1, 3]
+    assert cited("구매관재팀 [1, 9]. 발급 [2,3]", count=12) == [1, 2, 3, 9]
