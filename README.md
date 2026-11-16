@@ -46,7 +46,7 @@ SSE 이벤트
 | `done` | `grounded`(근거 여부), `unverified`(자료에 없는 전화번호나 링크) |
 | `error` | 모델 호출 실패 등 |
 
-`CHATBOT_INTERNAL_TOKEN`을 지정하면 `X-Internal-Token` 헤더가 같아야 호출할 수 있다.
+채팅 요청은 `X-Internal-Token` 헤더가 `CHATBOT_INTERNAL_TOKEN`과 같아야 한다. 토큰이 설정되지 않으면 설정 실수로 보고 모든 채팅 요청을 거부한다.
 
 ## 실행
 
@@ -55,7 +55,7 @@ python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
 .venv/bin/pytest -q                      # API 키 없이 가짜 임베딩, 가짜 모델로 실행
 
-echo "GEMINI_API_KEY=..." > .env         # 실제 모델로 실행할 때(.env는 커밋하지 않음)
+printf "GEMINI_API_KEY=...\nCHATBOT_INTERNAL_TOKEN=local-dev\n" > .env   # 실제 모델로 실행할 때(.env는 커밋하지 않음)
 set -a; . ./.env; set +a
 .venv/bin/uvicorn app.main:app --port 8000
 curl localhost:8000/readyz               # 처음에는 임베딩 계산에 몇 분 걸림
@@ -67,4 +67,4 @@ curl localhost:8000/readyz               # 처음에는 임베딩 계산에 몇 
 | `CHAT_MODEL` | `gemini-3.5-flash-lite` |
 | `EMBED_MODEL`, `EMBED_DIM` | `gemini-embedding-001`, `768` |
 | `CACHE_DIR` | `cache/` |
-| `CHATBOT_INTERNAL_TOKEN` | 없음(로컬 개발은 확인 안 함) |
+| `CHATBOT_INTERNAL_TOKEN` | 없음(없으면 채팅 요청 401. 로컬 개발도 아무 값이나 지정) |

@@ -72,7 +72,7 @@ def create_app(service: Service | None = None) -> FastAPI:
     app = FastAPI(title="Moa-Gwa Chatbot", lifespan=lifespan)
 
     def internal(x_internal_token: str = Header(default="")) -> None:
-        if config.INTERNAL_TOKEN and not hmac.compare_digest(x_internal_token, config.INTERNAL_TOKEN):
+        if not config.INTERNAL_TOKEN or not hmac.compare_digest(x_internal_token, config.INTERNAL_TOKEN):
             raise HTTPException(401, "invalid internal token")
 
     def ready_service() -> Service:

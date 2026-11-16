@@ -5,7 +5,7 @@ from fastapi.testclient import TestClient
 
 from app import config, graph, prompts
 from app.main import Service, create_app
-from tests.conftest import fake_model
+from tests.conftest import TOKEN, fake_model
 
 CLEAR = json.dumps({"interpretation": "성적증명서 발급 방법과 문의처", "intent": "procedure", "campus": "성심", "clear": True, "alternatives": []})
 AMBIGUOUS = json.dumps({"interpretation": "일반휴학 신청 절차", "intent": "procedure", "campus": "성심", "clear": False,
@@ -21,7 +21,7 @@ def events(response) -> list[tuple[str, dict]]:
 
 
 def client(index, analyzer, writer) -> TestClient:
-    return TestClient(create_app(Service(index, analyzer, writer)))
+    return TestClient(create_app(Service(index, analyzer, writer)), headers={"X-Internal-Token": TOKEN})
 
 
 def test_clear_question_streams_understood_sources_answer_and_done(index):
@@ -76,11 +76,18 @@ def test_weak_evidence_goes_to_fallback_and_invented_numbers_are_flagged(index, 
     assert done == ("done", {"grounded": False, "unverified": ["02-9999-0000"]})
 
 
-def test_requests_need_the_internal_token_and_a_ready_index(index, tmp_path, monkeypatch):
-    monkeypatch.setattr(config, "INTERNAL_TOKEN", "secret")
+def test_requests_need_the_internal_token_and_a_ready_index(index, monkeypatch):
     with client(index, fake_model(CLEAR), fake_model("x")) as c:
-        assert c.post("/v1/chat", json={"question": "q"}).status_code == 401
-        assert c.post("/v1/chat", json={"question": ""}, headers={"X-Internal-Token": "secret"}).status_code == 422
+        assert c.post("/v1/chat", json={"question": "q"}, headers={"X-Internal-Token": "wrong"}).status_code == 401
+        assert c.post("/v1/chat", json={"question": ""}).status_code == 422
         index.ready = False
-        assert c.post("/v1/chat", json={"question": "q"}, headers={"X-Internal-Token": "secret"}).status_code == 503
+        assert c.post("/v1/chat", json={"question": "q"}).status_code == 503
         assert c.get("/readyz").status_code == 503
+
+
+def test_missing_token_setting_rejects_every_chat_request(index, monkeypatch):
+    # 배포에서 토큰 설정이 빠지면 확인을 건너뛰지 않고 모두 거부
+    monkeypatch.setattr(config, "INTERNAL_TOKEN", "")
+    with client(index, fake_model(CLEAR), fake_model("x")) as c:
+        assert c.post("/v1/chat", json={"question": "q"}, headers={"X-Internal-Token": ""}).status_code == 401
+        assert c.post("/v1/chat/t_x/resume", json={"choice": "confirm"}, headers={"X-Internal-Token": ""}).status_code == 401

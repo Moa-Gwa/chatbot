@@ -5,6 +5,7 @@ import pytest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 
+from app import config
 from app.corpus import Alias, Doc
 from app.index import Index, bigrams
 
@@ -61,3 +62,11 @@ def index(tmp_path):
 
 def fake_model(*replies: str) -> GenericFakeChatModel:
     return GenericFakeChatModel(messages=iter([AIMessage(content=r) for r in replies]))
+
+
+TOKEN = "test-token"
+
+
+@pytest.fixture(autouse=True)
+def internal_token(monkeypatch):
+    monkeypatch.setattr(config, "INTERNAL_TOKEN", TOKEN)

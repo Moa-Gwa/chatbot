@@ -12,5 +12,5 @@ EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
 DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
 CACHE_DIR = Path(os.getenv("CACHE_DIR", ROOT / "cache"))
 
-# BE만 호출하도록 공유 토큰 확인. 비어 있으면(로컬 개발) 확인하지 않음
+# BE만 호출하도록 공유 토큰 확인. 비어 있으면 설정 실수로 보고 모든 채팅 요청을 거부함
 INTERNAL_TOKEN = os.getenv("CHATBOT_INTERNAL_TOKEN", "")
