@@ -1,3 +1,5 @@
+import numpy as np
+
 from app import config
 from app.corpus import load_aliases, load_docs
 from app.index import Index
@@ -41,6 +43,8 @@ def test_cache_reuses_vectors_and_only_embeds_changed_docs(tmp_path):
     edited = [DOCS[0].__class__(**{**DOCS[0].__dict__, "text": DOCS[0].text + " 추가"}), *DOCS[1:]]
     Index(edited, ALIASES, changed, tmp_path).build()
     assert changed.calls == 1
+    # 바뀌기 전 문서의 벡터는 캐시에서 빠짐
+    assert len(np.load(tmp_path / "embeddings-fake.npz")["digests"]) == len(DOCS)
 
 
 def test_permanent_errors_stop_indexing_without_retrying(tmp_path):

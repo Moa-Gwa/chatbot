@@ -89,7 +89,9 @@ class Index:
         known: dict[str, np.ndarray] = {}
         if self.cache.exists():
             data = np.load(self.cache)
-            known = dict(zip(data["digests"].tolist(), data["vectors"]))
+            current = {d.digest for d in self.docs}
+            # 지금 문서에 없는 옛 벡터는 버려 캐시가 수집할 때마다 커지지 않게 함
+            known = {k: v for k, v in zip(data["digests"].tolist(), data["vectors"]) if k in current}
         missing = [d for d in self.docs if d.digest not in known]
         self.embedded = len(self.docs) - len(missing)
         for start in range(0, len(missing), BATCH):
