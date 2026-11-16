@@ -31,8 +31,8 @@ class State(TypedDict, total=False):
     interpretation: str
     intent: str
     campus: str
-    clear: bool
     alternatives: list[str]
+    needs_confirm: bool  # 학생에게 해석을 확인받을지. 그래프 분기와 API 이벤트가 함께 씀
     retry: bool
     sources: list[Doc]  # 번호 순서 = 답변의 [n]
     aliases: list[str]
@@ -66,18 +66,21 @@ def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpoi
         except Exception:  # 분석이 실패해도 질문 그대로 검색해 답함
             log.exception("질문 분석 실패")
             result = {}
+        intent = str(result.get("intent") or "procedure")
+        alternatives = [str(a) for a in result.get("alternatives") or []][:2]
         return {
             "interpretation": str(result.get("interpretation") or state["question"]),
-            "intent": str(result.get("intent") or "procedure"),
+            "intent": intent,
             "campus": result.get("campus") if result.get("campus") in ("성심", "성의", "성신") else "성심",
-            "clear": bool(result.get("clear", True)),
-            "alternatives": [str(a) for a in result.get("alternatives") or []][:2],
+            "alternatives": alternatives,
+            # 고를 대안이 있을 때만 확인함
+            "needs_confirm": intent != "out_of_scope" and not result.get("clear", True) and bool(alternatives),
         }
 
     def after_analyze(state: State) -> str:
         if state["intent"] == "out_of_scope":
             return "refuse"
-        return "retrieve" if state["clear"] or not state["alternatives"] else "confirm"
+        return "confirm" if state["needs_confirm"] else "retrieve"
 
     def confirm(state: State) -> State:
         # 여기서 그래프가 멈추고, 학생 응답이 Command(resume=...)로 들어오면 이 줄부터 이어서 실행됨

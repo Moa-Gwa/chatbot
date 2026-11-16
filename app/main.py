@@ -136,7 +136,7 @@ def sse(svc: Service, thread_id: str, payload) -> StreamingResponse:
                         paused = True
                         svc.pending[thread_id] = time.monotonic()
                         yield event("clarify", {"thread_id": thread_id, **update[0].value})
-                    elif node == "analyze" and update["intent"] != "out_of_scope" and (update["clear"] or not update["alternatives"]):
+                    elif node == "analyze" and update["intent"] != "out_of_scope" and not update["needs_confirm"]:
                         yield event("understood", {"interpretation": update["interpretation"]})
                     elif node == "confirm" and update.get("retry"):
                         yield event("retry", {"message": prompts.RETRY})
