@@ -49,7 +49,8 @@ class Service:
 
     def expire(self) -> None:
         now = time.monotonic()
-        for thread_id in [t for t, at in self.pending.items() if now - at > PENDING_TTL]:
+        # 다른 요청 스레드가 동시에 추가하므로 한 번에 복사한 뒤 훑음
+        for thread_id in [t for t, at in list(self.pending.items()) if now - at > PENDING_TTL]:
             self.pending.pop(thread_id, None)
             self.checkpointer.delete_thread(thread_id)
 
