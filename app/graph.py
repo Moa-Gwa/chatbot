@@ -72,7 +72,9 @@ def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpoi
             log.exception("질문 분석 실패")
             result = {}
         intent = str(result.get("intent") or "procedure")
-        alternatives = [str(a) for a in result.get("alternatives") or []][:2]
+        alts = result.get("alternatives")
+        # 모델이 목록 대신 문자열을 주면 글자 단위로 쪼개지므로 목록일 때만 씀
+        alternatives = [str(a) for a in alts if str(a).strip()][:2] if isinstance(alts, list) else []
         return {
             "interpretation": str(result.get("interpretation") or state["question"]),
             "intent": intent,
