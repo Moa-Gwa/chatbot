@@ -74,7 +74,8 @@ def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpoi
             "campus": result.get("campus") if result.get("campus") in ("성심", "성의", "성신") else "성심",
             "alternatives": alternatives,
             # 고를 대안이 있을 때만 확인함
-            "needs_confirm": intent != "out_of_scope" and not result.get("clear", True) and bool(alternatives),
+            # 모델이 false를 문자열로 줘도 분명하지 않음으로 읽음
+            "needs_confirm": intent != "out_of_scope" and str(result.get("clear", True)).lower() == "false" and bool(alternatives),
         }
 
     def after_analyze(state: State) -> str:

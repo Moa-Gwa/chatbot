@@ -91,3 +91,9 @@ def test_missing_token_setting_rejects_every_chat_request(index, monkeypatch):
     with client(index, fake_model(CLEAR), fake_model("x")) as c:
         assert c.post("/v1/chat", json={"question": "q"}, headers={"X-Internal-Token": ""}).status_code == 401
         assert c.post("/v1/chat/t_x/resume", json={"choice": "confirm"}, headers={"X-Internal-Token": ""}).status_code == 401
+
+
+def test_string_false_from_the_model_still_asks_for_confirmation(index):
+    reply = AMBIGUOUS.replace('"clear": false', '"clear": "false"')
+    with client(index, fake_model(reply), fake_model("x")) as c:
+        assert [n for n, _ in events(c.post("/v1/chat", json={"question": "휴학 신청?"}))] == ["clarify"]
