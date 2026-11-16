@@ -31,7 +31,6 @@ class Embedder(Protocol):
 @dataclass(frozen=True)
 class Hit:
     doc: Doc
-    score: float  # 순위 합산 점수
     similarity: float  # 질문과의 코사인 유사도(근거 판정용)
 
 
@@ -143,7 +142,7 @@ class Index:
         for rank, i in enumerate(sparse[np.argsort(-keyword[sparse])][:50]):
             score[int(i)] += 1 / (RRF_K + rank)
         ranked = sorted(score, key=score.get, reverse=True)
-        return [Hit(self.docs[i], score[i], float(similarity[i])) for i in ranked]
+        return [Hit(self.docs[i], float(similarity[i])) for i in ranked]
 
     def current_department(self, name: str) -> str:
         """옛 부서명이면 지금 부서명으로 바꿈(대조표에 지금 부서가 있을 때만)"""
