@@ -4,5 +4,7 @@
 cache
 tests
 scripts
+eval
+docs
 **/__pycache__
 .env

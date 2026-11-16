@@ -2,7 +2,8 @@ import numpy as np
 
 from app import config
 from app.corpus import load_aliases, load_docs
-from app.index import Index, batches
+from app.corpus import Doc
+from app.index import WINDOW_CHARS, Index, windows
 from tests.conftest import ALIASES, DOCS, FakeEmbedder
 
 
@@ -49,7 +50,7 @@ def test_cache_reuses_vectors_and_only_embeds_changed_docs(tmp_path):
 
 def test_permanent_errors_stop_indexing_without_retrying(tmp_path):
     class BadKey(FakeEmbedder):
-        def embed_documents(self, texts, titles):
+        def embed_documents(self, texts):
             self.calls += 1
             raise ValueError("API key not valid")
 
@@ -59,8 +60,26 @@ def test_permanent_errors_stop_indexing_without_retrying(tmp_path):
     assert not index.ready and embedder.calls == 1 and "API key not valid" in index.error
 
 
-def test_batches_stay_under_the_size_budget():
-    parts = batches(DOCS, budget=120)
-    assert [d for p in parts for d in p] == DOCS
-    assert all(len(p) == 1 or sum(len(d.text) for d in p) <= 120 for p in parts)
-    assert len(batches(DOCS, budget=None)) == 1
+def test_long_chunks_are_embedded_in_windows_with_the_header_repeated():
+    text = "[학교 홈페이지 학사지원 > 장학]\n" + "\n".join(f"{i}번째 안내 문장 " * 6 for i in range(40)) + "\n국가장학금 신청은 한국장학재단에서"
+    parts = windows(text)
+    assert len(parts) > 1
+    assert all(len(p) <= WINDOW_CHARS and p.startswith("[학교 홈페이지 학사지원 > 장학]\n") for p in parts)
+    assert "국가장학금" in parts[-1]
+
+
+def test_content_at_the_end_of_a_long_chunk_is_still_found(tmp_path):
+    long = Doc("site9-0", "site", "학사지원 > 장학", "[학교 홈페이지 학사지원 > 장학]\n" + "\n".join(
+        f"교내 장학 안내 {i}" * 8 for i in range(30)) + "\n국가장학금 신청은 한국장학재단 홈페이지에서", None, "학생지원팀", None, "성심")
+    index = Index([long, *DOCS], ALIASES, FakeEmbedder(), tmp_path)
+    index.build()
+    assert index.search("국가장학금 한국장학재단")[0].doc.id == "site9-0"
+
+
+def test_department_with_work_description_still_finds_its_contact(tmp_path):
+    page = Doc("site8-0", "site", "학사지원 > 장학제도", "[학교 홈페이지 장학]\n문의: 학생지원팀 교내장학 / 국가장학\n장학금 안내",
+               None, "학생지원팀 교내장학 / 국가장학", None, "성심")
+    index = Index([page, *DOCS], ALIASES, FakeEmbedder(), tmp_path)
+    index.build()
+    hits = [h for h in index.search("장학금 안내") if h.doc.id == "site8-0"]
+    assert [c.id for c in index.contacts_for(hits)] == ["contact-1"]

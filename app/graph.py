@@ -15,9 +15,8 @@ from app.index import Index
 
 log = logging.getLogger(__name__)
 
-# 가장 가까운 홈페이지 안내나 규정이 이보다 멀면 근거 부족으로 보고 문의처만 안내
-# shortcut: 기준값을 고정함, 평가 세트로 다시 정할 것
-GROUND_MIN_SIMILARITY = 0.55
+# 가장 가까운 홈페이지 안내나 규정이 이보다 멀면 근거 부족으로 보고 문의처만 안내(근거: docs/decisions.md)
+GROUND_MIN_SIMILARITY = 0.42
 
 
 class Turn(TypedDict):

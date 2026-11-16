@@ -11,6 +11,7 @@ from typing import Literal
 from fastapi import Depends, FastAPI, Header, HTTPException
 from fastapi.responses import JSONResponse, StreamingResponse
 from langgraph.checkpoint.memory import InMemorySaver
+from langgraph.checkpoint.serde.jsonplus import JsonPlusSerializer
 from langgraph.types import Command
 from pydantic import BaseModel, Field
 
@@ -43,7 +44,8 @@ class Service:
 
     def __init__(self, index: Index, analyzer, writer):
         self.index = index
-        self.checkpointer = InMemorySaver()
+        # 상태에 담는 Doc을 체크포인트에서 되살릴 수 있게 허용(미등록 타입은 이후 LangGraph에서 차단됨)
+        self.checkpointer = InMemorySaver(serde=JsonPlusSerializer(allowed_msgpack_modules=[("app.corpus", "Doc")]))
         self.graph = build(index, analyzer, writer, self.checkpointer)
         self.pending: dict[str, float] = {}  # thread_id → 멈춘 시각
 
@@ -56,8 +58,8 @@ class Service:
 
 
 def default_service() -> Service:
-    from app.models import GeminiEmbedder, analyzer, writer
-    index = Index(load_docs(config.DATA_DIR), load_aliases(config.DATA_DIR), GeminiEmbedder(), config.CACHE_DIR)
+    from app.models import LocalEmbedder, analyzer, writer
+    index = Index(load_docs(config.DATA_DIR), load_aliases(config.DATA_DIR), LocalEmbedder(), config.DATA_DIR)
     return Service(index, analyzer(), writer())
 
 

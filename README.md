@@ -17,13 +17,18 @@ analyze ─┬─ 분명함 ─────────────▶ retrieve 
 | 파일 | 역할 |
 |---|---|
 | `app/corpus.py` | `data/`의 홈페이지 안내, 규정, 연락처, 옛 부서명 대조표 읽기 |
-| `app/index.py` | Gemini 임베딩 캐시, 의미 검색과 2글자 키워드 검색(BM25)을 순위로 합치는 혼합 검색, 담당부서 연락처 보강 |
+| `app/index.py` | 임베딩 파일 읽기, 의미 검색과 2글자 키워드 검색(BM25)을 순위로 합치는 혼합 검색, 담당부서 연락처 보강 |
+| `app/models.py` | 임베딩은 로컬 Hugging Face 모델(`dragonkue/multilingual-e5-small-ko`), 답변은 Gemini |
 | `app/graph.py` | LangGraph 흐름. 헷갈리는 질문은 `interrupt()`로 멈추고 학생 확인 후 이어서 실행 |
 | `app/prompts.py` | 질문 분석, 답변, 근거 부족 안내 프롬프트 |
 | `app/main.py` | FastAPI, SSE 스트리밍, 내부 토큰 확인, 확인 대기 대화 10분 보관 |
 | `scripts/crawl_site.py` | 학교 홈페이지 안내 수집(`data/README.md` 참고) |
+| `scripts/build_embeddings.py` | 임베딩 파일 `data/embeddings-<모델>.npz`를 로컬에서 만듦 |
+| `scripts/eval_retrieval.py` | 평가 세트(`eval/`)로 검색 품질, 근거 판정 기준값, 창 크기를 잼 |
+| `docs/decisions.md` | 모델과 조정한 값의 근거, 측정 결과 |
 
-문서 1만 개 규모라 벡터 DB 없이 메모리에서 계산한다. 임베딩은 `cache/`에 저장하고 바뀐 문서만 다시 계산한다.
+문서 1만 개 규모라 벡터 DB 없이 메모리에서 계산한다. 조각은 답변용(최대 1,500자)으로 두고, 임베딩은 모델 입력 한도(512토큰)에 맞춰 550자 창으로 나눠 계산한다.
+임베딩은 로컬에서 미리 계산해 커밋하고 운영은 읽기만 한다. `data/`를 바꾸면 임베딩 파일도 다시 만들어야 테스트가 통과한다.
 
 ## API
 
@@ -53,19 +58,19 @@ SSE 이벤트
 ```bash
 python3.12 -m venv .venv
 .venv/bin/pip install -r requirements.txt -r requirements-dev.txt
-.venv/bin/pytest -q                      # API 키 없이 가짜 임베딩, 가짜 모델로 실행
+.venv/bin/pytest -q                              # 가짜 임베딩, 가짜 모델로 실행(API 키 불필요)
 
-printf "GEMINI_API_KEY=...\nCHATBOT_INTERNAL_TOKEN=local-dev\n" > .env   # 실제 모델로 실행할 때(.env는 커밋하지 않음)
+.venv/bin/python scripts/build_embeddings.py      # data/를 바꿨을 때(Apple Silicon은 GPU로 약 3분)
+.venv/bin/python scripts/eval_retrieval.py        # 검색 품질 확인
+
+printf "GEMINI_API_KEY=...\nCHATBOT_INTERNAL_TOKEN=local-dev\n" > .env   # .env는 커밋하지 않음
 set -a; . ./.env; set +a
 .venv/bin/uvicorn app.main:app --port 8000
-curl localhost:8000/readyz               # 처음에는 임베딩 계산이 끝날 때까지 503
 ```
 
 | 환경변수 | 기본값 |
 |---|---|
-| `GEMINI_API_KEY` | 없음(없으면 `/readyz`에 오류, 채팅은 503) |
+| `GEMINI_API_KEY` | 없음(없으면 답변 생성이 실패해 `error` 이벤트) |
 | `CHAT_MODEL` | `gemini-3.5-flash-lite` |
-| `EMBED_MODEL`, `EMBED_DIM` | `gemini-embedding-001`, `768` |
-| `EMBED_TOKENS_PER_MINUTE` | `30000`(Gemini 무료 등급 한도. 처음 색인에 약 1시간 반, 유료 등급이면 올림) |
-| `CACHE_DIR` | `cache/` |
+| `EMBED_MODEL` | `dragonkue/multilingual-e5-small-ko`(바꾸면 임베딩 파일을 다시 만들어야 함) |
 | `CHATBOT_INTERNAL_TOKEN` | 없음(없으면 채팅 요청 401. 로컬 개발도 아무 값이나 지정) |

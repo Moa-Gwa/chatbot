@@ -1,24 +1,27 @@
-"""Gemini 임베딩, 채팅 모델. 테스트는 같은 인터페이스의 가짜 구현을 넣어 API 키 없이 돌림."""
-from langchain_google_genai import ChatGoogleGenerativeAI, GoogleGenerativeAIEmbeddings
+"""임베딩은 로컬 Hugging Face 모델, 답변은 Gemini. 테스트는 같은 인터페이스의 가짜 구현을 넣어 돌림."""
+from langchain_google_genai import ChatGoogleGenerativeAI
 
 from app import config
 
-# 키가 없어도 서버는 뜨게 하고, 실제 호출에서 실패하면 /readyz에 원인을 보임
+# 키가 없어도 서버는 뜨게 하고, 실제 호출에서 실패하면 오류 이벤트로 알림
 KEY = config.GEMINI_API_KEY or "missing"
 
 
-class GeminiEmbedder:
-    def __init__(self) -> None:
-        self.name = f"{config.EMBED_MODEL}-{config.EMBED_DIM}"
-        self.tokens_per_minute = config.EMBED_TOKENS_PER_MINUTE
-        self.client = GoogleGenerativeAIEmbeddings(model=config.EMBED_MODEL, google_api_key=KEY)
+class LocalEmbedder:
+    """e5 계열은 질문에 "query: ", 문서에 "passage: "를 붙여야 학습 때와 같은 방식으로 비교됨"""
 
-    def embed_documents(self, texts: list[str], titles: list[str]) -> list[list[float]]:
-        return self.client.embed_documents(texts, task_type="RETRIEVAL_DOCUMENT", titles=titles,
-                                           output_dimensionality=config.EMBED_DIM)
+    def __init__(self, device: str | None = None) -> None:
+        from sentence_transformers import SentenceTransformer  # torch가 무거워 실제로 쓸 때만 불러옴
 
-    def embed_query(self, text: str) -> list[float]:
-        return self.client.embed_query(text, task_type="RETRIEVAL_QUERY", output_dimensionality=config.EMBED_DIM)
+        self.name = config.EMBED_MODEL.split("/")[-1]
+        self.model = SentenceTransformer(config.EMBED_MODEL, device=device)
+
+    def embed_documents(self, texts: list[str]):
+        return self.model.encode([f"passage: {t}" for t in texts], batch_size=32, normalize_embeddings=True,
+                                 show_progress_bar=len(texts) > 100)
+
+    def embed_query(self, text: str):
+        return self.model.encode(f"query: {text}", normalize_embeddings=True)
 
 
 def analyzer() -> ChatGoogleGenerativeAI:

@@ -5,7 +5,7 @@ import pytest
 from langchain_core.language_models.fake_chat_models import GenericFakeChatModel
 from langchain_core.messages import AIMessage
 
-from app import config
+from app import config, graph
 from app.corpus import Alias, Doc
 from app.index import Index, bigrams
 
@@ -15,7 +15,6 @@ DIM = 512
 class FakeEmbedder:
     """2글자 해시 벡터. 글자가 많이 겹칠수록 가까워져 API 없이 검색 순서를 검사할 수 있음"""
     name = "fake"
-    tokens_per_minute = None
 
     def __init__(self):
         self.calls = 0
@@ -26,9 +25,9 @@ class FakeEmbedder:
             v[zlib.crc32(g.encode()) % DIM] += 1
         return v.tolist()
 
-    def embed_documents(self, texts, titles):
+    def embed_documents(self, texts):
         self.calls += 1
-        return [self._vec(f"{title} {text}") for text, title in zip(texts, titles)]
+        return [self._vec(text) for text in texts]
 
     def embed_query(self, text):
         return self._vec(text)
@@ -71,3 +70,5 @@ TOKEN = "test-token"
 @pytest.fixture(autouse=True)
 def internal_token(monkeypatch):
     monkeypatch.setattr(config, "INTERNAL_TOKEN", TOKEN)
+    # 가짜 임베딩은 유사도 분포가 실제 모델과 달라 기준값을 따로 둠
+    monkeypatch.setattr(graph, "GROUND_MIN_SIMILARITY", 0.2)
