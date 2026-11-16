@@ -22,6 +22,7 @@ QUOTA = {"site": 4, "regulation": 3, "contact": 3}
 
 class Embedder(Protocol):
     name: str
+    tokens_per_minute: int | None  # None이면 속도 조절 안 함(테스트용 가짜 임베딩)
 
     def embed_documents(self, texts: list[str], titles: list[str]) -> list[list[float]]: ...
 
@@ -65,6 +66,17 @@ class Keyword:
         return out
 
 
+def batches(docs: list[Doc], budget: int | None) -> list[list[Doc]]:
+    """최대 BATCH개씩, budget이 있으면 묶음 글자 수도 그 안으로 나눔"""
+    out: list[list[Doc]] = []
+    for d in docs:
+        size = sum(len(x.text) for x in out[-1]) if out else 0
+        if not out or len(out[-1]) >= BATCH or (budget and size + len(d.text) > budget):
+            out.append([])
+        out[-1].append(d)
+    return out
+
+
 class Index:
     def __init__(self, docs: list[Doc], aliases: list[Alias], embedder: Embedder, cache_dir: Path):
         self.docs, self.aliases, self.embedder = docs, aliases, embedder
@@ -93,8 +105,10 @@ class Index:
             known = {k: v for k, v in zip(data["digests"].tolist(), data["vectors"]) if k in current}
         missing = [d for d in self.docs if d.digest not in known]
         self.embedded = len(self.docs) - len(missing)
-        for start in range(0, len(missing), BATCH):
-            batch = missing[start:start + BATCH]
+        tpm = self.embedder.tokens_per_minute
+        # 한국어는 글자 수가 토큰 수보다 많아 글자 수를 토큰 수로 보면 한도를 넉넉히 지킴
+        budget = int(tpm * 0.8) if tpm else None
+        for batch in batches(missing, budget):
             for attempt in range(6):
                 try:
                     vectors = self.embedder.embed_documents([d.text for d in batch], [d.title for d in batch])
@@ -107,6 +121,8 @@ class Index:
             known.update({d.digest: np.asarray(v, dtype=np.float32) for d, v in zip(batch, vectors)})
             self.embedded += len(batch)
             self._save(known)
+            if budget:  # 보낸 양만큼 쉬어 분당 한도 안에서 계속 보냄
+                time.sleep(60 * sum(len(d.text) for d in batch) / budget)
         matrix = np.stack([known[d.digest] for d in self.docs]) if self.docs else np.zeros((0, 1), np.float32)
         self.vectors = matrix / np.clip(np.linalg.norm(matrix, axis=1, keepdims=True), 1e-12, None)
         self.ready = True

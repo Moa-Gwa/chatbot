@@ -58,7 +58,7 @@ python3.12 -m venv .venv
 printf "GEMINI_API_KEY=...\nCHATBOT_INTERNAL_TOKEN=local-dev\n" > .env   # 실제 모델로 실행할 때(.env는 커밋하지 않음)
 set -a; . ./.env; set +a
 .venv/bin/uvicorn app.main:app --port 8000
-curl localhost:8000/readyz               # 처음에는 임베딩 계산에 몇 분 걸림
+curl localhost:8000/readyz               # 처음에는 임베딩 계산이 끝날 때까지 503
 ```
 
 | 환경변수 | 기본값 |
@@ -66,5 +66,6 @@ curl localhost:8000/readyz               # 처음에는 임베딩 계산에 몇 
 | `GEMINI_API_KEY` | 없음(없으면 `/readyz`에 오류, 채팅은 503) |
 | `CHAT_MODEL` | `gemini-3.5-flash-lite` |
 | `EMBED_MODEL`, `EMBED_DIM` | `gemini-embedding-001`, `768` |
+| `EMBED_TOKENS_PER_MINUTE` | `30000`(Gemini 무료 등급 한도. 처음 색인에 약 1시간 반, 유료 등급이면 올림) |
 | `CACHE_DIR` | `cache/` |
 | `CHATBOT_INTERNAL_TOKEN` | 없음(없으면 채팅 요청 401. 로컬 개발도 아무 값이나 지정) |

@@ -2,7 +2,7 @@ import numpy as np
 
 from app import config
 from app.corpus import load_aliases, load_docs
-from app.index import Index
+from app.index import Index, batches
 from tests.conftest import ALIASES, DOCS, FakeEmbedder
 
 
@@ -57,3 +57,10 @@ def test_permanent_errors_stop_indexing_without_retrying(tmp_path):
     index = Index(DOCS, ALIASES, embedder, tmp_path)
     index.build()
     assert not index.ready and embedder.calls == 1 and "API key not valid" in index.error
+
+
+def test_batches_stay_under_the_size_budget():
+    parts = batches(DOCS, budget=120)
+    assert [d for p in parts for d in p] == DOCS
+    assert all(len(p) == 1 or sum(len(d.text) for d in p) <= 120 for p in parts)
+    assert len(batches(DOCS, budget=None)) == 1

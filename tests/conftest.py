@@ -15,6 +15,7 @@ DIM = 512
 class FakeEmbedder:
     """2글자 해시 벡터. 글자가 많이 겹칠수록 가까워져 API 없이 검색 순서를 검사할 수 있음"""
     name = "fake"
+    tokens_per_minute = None
 
     def __init__(self):
         self.calls = 0

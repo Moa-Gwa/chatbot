@@ -8,6 +8,8 @@ CHAT_MODEL = os.getenv("CHAT_MODEL", "gemini-3.5-flash-lite")
 EMBED_MODEL = os.getenv("EMBED_MODEL", "gemini-embedding-001")
 # 768차원: 3072 대비 저장량과 계산량이 1/4이고 검색 품질 차이는 작음(Gemini 권장 축소 크기)
 EMBED_DIM = int(os.getenv("EMBED_DIM", "768"))
+# 임베딩 분당 토큰 한도. 기본값은 Gemini 무료 등급(분당 3만). 유료 등급이면 올림
+EMBED_TOKENS_PER_MINUTE = int(os.getenv("EMBED_TOKENS_PER_MINUTE", "30000"))
 
 DATA_DIR = Path(os.getenv("DATA_DIR", ROOT / "data"))
 CACHE_DIR = Path(os.getenv("CACHE_DIR", ROOT / "cache"))

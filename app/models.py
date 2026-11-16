@@ -10,6 +10,7 @@ KEY = config.GEMINI_API_KEY or "missing"
 class GeminiEmbedder:
     def __init__(self) -> None:
         self.name = f"{config.EMBED_MODEL}-{config.EMBED_DIM}"
+        self.tokens_per_minute = config.EMBED_TOKENS_PER_MINUTE
         self.client = GoogleGenerativeAIEmbeddings(model=config.EMBED_MODEL, google_api_key=KEY)
 
     def embed_documents(self, texts: list[str], titles: list[str]) -> list[list[float]]:
