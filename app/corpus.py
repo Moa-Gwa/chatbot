@@ -1,11 +1,14 @@
-"""data/의 홈페이지 안내, 규정, 연락처를 검색 단위 문서로 읽음."""
+"""data/의 홈페이지 안내, 규정, 연락처와 BE가 보내 주는 공지를 검색 단위 문서로 만듦."""
 import csv
 import hashlib
 import json
 from dataclasses import dataclass
+from datetime import datetime
+from zoneinfo import ZoneInfo
 from pathlib import Path
 
 REGULATION_KINDS = ("article", "attachment", "addenda")
+KST = ZoneInfo("Asia/Seoul")
 
 
 @dataclass(frozen=True)
@@ -64,3 +67,23 @@ def load_docs(data_dir: Path) -> list[Doc]:
 def load_aliases(data_dir: Path) -> list[Alias]:
     return [Alias(r["옛 부서명(주요연락처 표)"], r["현재 부서"], r["대조 결과"], r["번호"])
             for r in _csv(data_dir / "department_aliases.csv")]
+
+
+def _kst(value: str | None) -> str | None:
+    return datetime.fromisoformat(value).astimezone(KST).strftime("%Y-%m-%d %H:%M") if value else None
+
+
+def notice_doc(n: dict) -> Doc:
+    """BE 공지 한 건. 날짜를 본문 앞에 적어 답변이 마감, 행사 시점을 함께 안내하게 함"""
+    lines = [f"[공지] {n['title']}", f"작성: {n['organization']}"]
+    for label, value in (("게시일", _kst(n.get("published_at"))), ("신청 마감", _kst(n.get("deadline_at")))):
+        if value:
+            lines.append(f"{label}: {value}")
+    start, end = _kst(n.get("event_start_at")), _kst(n.get("event_end_at"))
+    if start:
+        lines.append(f"행사 일시: {start}" + (f" ~ {end}" if end else ""))
+    if n.get("location"):
+        lines.append(f"장소: {n['location']}")
+    body = (n.get("body") or "").strip()
+    return Doc(f"notice-{n['key']}", "notice", f"공지 > {n['organization']} > {n['title']}",
+               "\n".join(lines) + (f"\n\n{body}" if body else ""), n.get("url"), n["organization"])
