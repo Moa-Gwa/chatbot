@@ -2,6 +2,7 @@
 import json
 import logging
 import re
+from datetime import datetime
 from typing import Literal, TypedDict
 
 from langchain_core.language_models import BaseChatModel
@@ -10,7 +11,7 @@ from langgraph.graph import END, START, StateGraph
 from langgraph.types import interrupt
 
 from app import prompts
-from app.corpus import Doc
+from app.corpus import KST, Doc
 from app.index import Index
 
 log = logging.getLogger(__name__)
@@ -111,7 +112,8 @@ def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpoi
         return {"sources": sources, "grounded": grounded}
 
     def write(template: str, state: State) -> State:
-        prompt = template.format(sources=source_block(state["sources"], index.annotate), question=state["interpretation"])
+        prompt = template.format(sources=source_block(state["sources"], index.annotate), question=state["interpretation"],
+                                 today=datetime.now(KST).strftime("%Y-%m-%d"))
         return {"answer": _content(writer.invoke(prompt))}
 
     def answer(state: State) -> State:
