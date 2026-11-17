@@ -1,7 +1,7 @@
 """가톨릭대학교 홈페이지의 학생 안내 페이지를 모아 data/site_pages.jsonl로 저장.
 
-학사지원·대학생활·캠퍼스 안내 메뉴에서 시작해 같은 메뉴의 탭 페이지까지 따라감.
-게시판 글(mode=)과 홍보·연혁 등 안내와 무관한 메뉴는 제외. 1초에 한 페이지씩 요청함.
+학사지원, 대학생활, 캠퍼스 안내 메뉴에서 시작해 같은 메뉴의 탭 페이지까지 따라감.
+게시판 글(mode=)과 홍보, 연혁 등 안내와 무관한 메뉴는 제외. 1초에 한 페이지씩 요청함.
 
     .venv/bin/python scripts/crawl_site.py
 """
@@ -30,7 +30,7 @@ ALLOW = re.compile(r"^/ko/(support/|campuslife/|certificate_domestic\.do$|servic
 DENY = re.compile(r"/notice[\w]*\.do$|/campuslife/(media|club|institutional_club\d*|CUBIG|catchup|supporters|cat-cert)\.do$")
 
 
-# 학번별 교과과정·졸업학점 페이지는 재학 가능성이 있는 학번만 수집
+# 학번별 교과과정, 졸업학점 페이지는 재학 가능성이 있는 학번만 수집
 # shortcut: 기준 학번을 고정함, 매년 초 MIN_YEAR를 올리거나 현재 연도 기준으로 바꿀 것
 MIN_YEAR = 2019
 YEAR_PAGE = re.compile(r"_(\d{4})(?:-(\d{4}))?\.do$")
@@ -40,7 +40,7 @@ ROBOTS = urllib.robotparser.RobotFileParser(BASE + "/robots.txt")
 
 
 def fetch(url: str) -> str:
-    """요청 한도 초과·서버 오류는 세 번까지 다시 시도. 그 밖의 오류는 바로 올림"""
+    """요청 한도 초과, 서버 오류는 세 번까지 다시 시도. 그 밖의 오류는 바로 올림"""
     for attempt in range(3):
         try:
             with urllib.request.urlopen(urllib.request.Request(url, headers=HEADERS), timeout=20) as r:
@@ -78,7 +78,7 @@ def span(cell, name: str) -> int:
 
 
 def table_rows(table) -> list[str]:
-    """합친 칸(rowspan·colspan)의 값을 행·열마다 되풀이해 한 행만 읽어도 뜻이 통하게 함"""
+    """합친 칸(rowspan, colspan)의 값을 행과 열마다 되풀이해 한 행만 읽어도 뜻이 통하게 함"""
     carry: dict[int, tuple[int, str]] = {}  # 열 번호 → (아래로 남은 행 수, 값)
     rows = []
     for tr in table.find_all("tr"):
@@ -128,7 +128,7 @@ def parse(path: str, html: str) -> tuple[dict | None, set[str]]:
         return None, links
     for junk in content.select("script, style, .fxd-btn-wrap, .gtx-trans-icon"):
         junk.decompose()
-    # 게시판(유실물·서식 목록 등)은 글이 계속 바뀌고 작성자명이 섞여 있어 목록은 빼고 위치만 안내
+    # 게시판(유실물, 서식 목록 등)은 글이 계속 바뀌고 작성자명이 섞여 있어 목록은 빼고 위치만 안내
     boards = content.select(".co-board")
     for board in boards:
         board.decompose()
@@ -189,7 +189,7 @@ def main() -> None:
         try:
             page, links = parse(path, fetch(BASE + path))
         except urllib.error.HTTPError as e:
-            if e.code not in (404, 410):  # 404·410만 메뉴에 남은 죽은 링크로 보고 건너뜀
+            if e.code not in (404, 410):  # 404, 410만 메뉴에 남은 죽은 링크로 보고 건너뜀
                 failed.append(path)
             print(f"skip {path}: {e}", file=sys.stderr)
             continue
