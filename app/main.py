@@ -44,6 +44,7 @@ class Service:
 
     def __init__(self, index: Index, analyzer, writer):
         self.index = index
+        # shortcut: 확인 대기 대화가 파드 메모리에만 있어 재시작이나 다른 파드로 간 /resume은 404, 파드를 늘릴 때 Redis/Postgres 체크포인터로 교체
         # 상태에 담는 Doc을 체크포인트에서 되살릴 수 있게 허용(미등록 타입은 이후 LangGraph에서 차단됨)
         self.checkpointer = InMemorySaver(serde=JsonPlusSerializer(allowed_msgpack_modules=[("app.corpus", "Doc")]))
         self.graph = build(index, analyzer, writer, self.checkpointer)

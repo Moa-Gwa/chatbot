@@ -136,10 +136,17 @@ def build(index: Index, analyzer: BaseChatModel, writer: BaseChatModel, checkpoi
     return graph.compile(checkpointer=checkpointer)
 
 
+CONTACT = re.compile(r"0\d{1,2}-\d{3,4}-\d{4}|https?://[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]+")
+
+
+def contacts(text: str) -> list[str]:
+    """전화번호, 링크를 뽑아 끝의 문장부호와 / 를 뗌. "…/에서", "…do." 같은 한국어 문장 대비"""
+    return [x.rstrip(".,;:!?'/") for x in CONTACT.findall(text)]
+
+
 def unverified(answer: str, sources: list[Doc]) -> list[str]:
     """답변에 나온 전화번호, 링크 중 자료에 없는 것. 모델이 지어낸 값을 잡아냄"""
-    known = "\n".join(f"{d.text} {d.url or ''} {d.phone or ''}" for d in sources) + " 02-2164-4114"
-    # 링크는 URL에 쓰는 ASCII 글자까지만 보고 끝의 문장부호는 뗌("…/에서", "…do." 같은 한국어 문장 대비)
-    found = [x.rstrip(".,;:!?'") for x in re.findall(r"0\d{1,2}-\d{3,4}-\d{4}|https?://[A-Za-z0-9\-._~:/?#@!$&'*+,;=%]+", answer)]
-    return [x for x in dict.fromkeys(found) if x not in known]
+    # 부분 문자열로 비교하면 실제 링크의 앞부분만 잘라 쓴 링크를 놓치므로 값 단위로 정확히 비교
+    known = set(contacts("\n".join(f"{d.text} {d.url or ''} {d.phone or ''}" for d in sources) + " 02-2164-4114"))
+    return [x for x in dict.fromkeys(contacts(answer)) if x not in known]
 
