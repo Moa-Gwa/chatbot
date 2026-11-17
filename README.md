@@ -37,6 +37,7 @@ analyze ─┬─ 분명함 ─────────────▶ retrieve 
 |---|---|
 | `POST /v1/chat` | `{question, history[≤6]}`. 응답은 `text/event-stream` |
 | `POST /v1/chat/{thread_id}/resume` | `{choice: "confirm" \| "alternative" \| "retry", index?}`. 멈춘 대화를 이어서 실행 |
+| `PUT /v1/notices` | `{notices: [{key, title, organization, body, url, publishedAt, deadlineAt, eventStartAt, eventEndAt, location}]}`. BE가 보내는 공지 목록 전체로 공지 색인을 바꿈(202, 뒤에서 계산). 같은 목록이면 `changed: false` |
 | `GET /healthz` | 프로세스 생존 |
 | `GET /readyz` | 색인 준비 여부와 진행률, 오류 |
 

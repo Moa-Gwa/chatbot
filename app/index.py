@@ -18,7 +18,8 @@ log = logging.getLogger(__name__)
 RRF_K = 60  # 순위 합산 상수(RRF 기본값)
 KEYWORD_WEIGHT = 0.2  # 키워드 순위의 비중. 평가 세트 31개에서 가장 좋았던 값
 WINDOW_CHARS = 550  # 검색용 창 크기. 모델 입력 한도 512토큰 안에 들도록 정함
-QUOTA = {"site": 4, "regulation": 3, "contact": 3}
+# notice: BE가 보내 주는 최근 공지(docs/decisions.md 공지 색인)
+QUOTA = {"site": 4, "regulation": 3, "notice": 3, "contact": 3}
 
 
 class Embedder(Protocol):
@@ -90,10 +91,14 @@ class Keyword:
 
 
 class Index:
-    def __init__(self, docs: list[Doc], aliases: list[Alias], embedder: Embedder, data_dir: Path):
-        self.docs, self.embedder = docs, embedder
+    def __init__(self, docs: list[Doc], aliases: list[Alias], embedder: Embedder, data_dir: Path,
+                 known: dict[str, np.ndarray] | None = None):
+        self.docs, self.aliases, self.embedder, self.data_dir = docs, aliases, embedder, data_dir
         # 로컬에서 미리 계산해 커밋한 파일. 운영은 읽기만 함(scripts/build_embeddings.py)
         self.cache = data_dir / f"embeddings-{embedder.name}.npz"
+        # 공지를 바꿔 다시 만들 때는 이전 색인의 벡터를 받아 새 창만 계산하고, 파일에는 저장하지 않음(공지는 매번 BE가 다시 보냄)
+        self._seed = known
+        self.known: dict[str, np.ndarray] = {}
         self.embedded, self.ready, self.error = 0, False, None
         self.vectors = np.zeros((0, 0), dtype=np.float32)
         # 제목은 키워드에 한 번 더 넣어 메뉴 경로, 조문 제목을 무겁게 봄
@@ -118,10 +123,12 @@ class Index:
         texts = [(i, w) for i, d in enumerate(self.docs) for w in windows(d.text)]
         self.owner = np.array([i for i, _ in texts], dtype=int)
         digests = [hashlib.sha1(w.encode()).hexdigest() for _, w in texts]
+        current = set(digests)
         known: dict[str, np.ndarray] = {}
-        if self.cache.exists():
+        if self._seed is not None:
+            known = {k: v for k, v in self._seed.items() if k in current}
+        elif self.cache.exists():
             data = np.load(self.cache)
-            current = set(digests)
             # 지금 쓰지 않는 옛 벡터는 버려 파일이 다시 수집할 때마다 커지지 않게 함
             known = {k: v for k, v in zip(data["digests"].tolist(), data["vectors"]) if k in current}
         missing = [(h, w) for h, (_, w) in dict(zip(digests, texts)).items() if h not in known]
@@ -131,9 +138,11 @@ class Index:
             known.update({h: np.asarray(v, dtype=np.float32) for (h, _), v in
                           zip(missing, self.embedder.embed_documents([w for _, w in missing]))})
             self.embedded = len(self.docs)
-            self._save(known)
+            if self._seed is None:
+                self._save(known)
         matrix = np.stack([known[h] for h in digests]).astype(np.float32) if digests else np.zeros((0, 1), np.float32)
         self.vectors = matrix / np.clip(np.linalg.norm(matrix, axis=1, keepdims=True), 1e-12, None)
+        self.known = known
         self.embedder.embed_query("워밍업")  # 첫 요청에서 모델을 데우느라 늦어지지 않게 미리 한 번 실행
         self.ready = True
 
