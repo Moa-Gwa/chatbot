@@ -69,6 +69,8 @@ class Service:
         self.notices: list[Doc] = []
         self._pending: list[Doc] | None = None
         self._lock = threading.Lock()
+        # 작업 중 여부는 잠금 안에서만 바꿈. 스레드 생존 여부로 판단하면 끝나는 순간 들어온 목록이 처리되지 않고 남음
+        self._rebuilding = False
         self.notice_worker: threading.Thread | None = None
         # shortcut: 확인 대기 대화가 파드 메모리에만 있어 재시작이나 다른 파드로 간 /resume은 404, 파드를 늘릴 때 Redis/Postgres 체크포인터로 교체
         # 상태에 담는 Doc을 체크포인트에서 되살릴 수 있게 허용(미등록 타입은 이후 LangGraph에서 차단됨)
@@ -83,7 +85,8 @@ class Service:
             if [(d.id, d.digest) for d in latest] == [(d.id, d.digest) for d in notices]:
                 return False
             self._pending = notices
-            if not (self.notice_worker and self.notice_worker.is_alive()):
+            if not self._rebuilding:
+                self._rebuilding = True
                 self.notice_worker = threading.Thread(target=self._rebuild, daemon=True)
                 self.notice_worker.start()
         return True
@@ -92,11 +95,16 @@ class Service:
         while True:
             with self._lock:
                 notices, self._pending = self._pending, None
-            if notices is None:
-                return
-            index = Index(self.base_docs + notices, self.index.aliases, self.index.embedder, self.index.data_dir,
-                          known=self.index.known)
-            index.build()
+                if notices is None:
+                    self._rebuilding = False
+                    return
+            try:
+                index = Index(self.base_docs + notices, self.index.aliases, self.index.embedder, self.index.data_dir,
+                              known=self.index.known)
+                index.build()
+            except Exception:  # 여기서 스레드가 죽으면 작업 중 표시가 남아 이후 목록이 처리되지 않음
+                log.exception("공지 색인 만들기 실패")
+                continue
             if not index.ready:  # 실패하면 기존 색인을 그대로 쓰고 다음 동기화를 기다림
                 continue
             # 그래프는 색인을 붙잡고 있어 함께 바꿈. 확인 대기 대화는 체크포인터에 있어 이어짐

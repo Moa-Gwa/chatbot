@@ -52,3 +52,53 @@ def test_notice_sync_swaps_the_index_and_answers_from_the_notice(index):
         assert c.put("/v1/notices", json={"notices": []}).json()["changed"] is True
         svc.notice_worker.join(10)
         assert c.get("/readyz").json()["notices"] == 0
+
+
+def test_lists_sent_while_building_are_coalesced_and_never_left_pending(index, monkeypatch):
+    import threading
+
+    import app.main as main
+
+    started, release = threading.Event(), threading.Event()
+    built: list[int] = []
+
+    class SlowIndex(Index):
+        def build(self):
+            started.set()
+            release.wait(10)
+            super().build()
+            built.append(sum(d.kind == "notice" for d in self.docs))
+
+    monkeypatch.setattr(main, "Index", SlowIndex)
+    svc = Service(index, fake_model(QUESTION), fake_model("x"))
+    other = {**SCHOLARSHIP, "key": "CRAWLED:8", "title": "근로장학생 모집"}
+    assert svc.sync_notices([notice_doc({**SCHOLARSHIP})]) is True
+    started.wait(10)
+    # 첫 목록을 만드는 중에 두 목록이 더 오면 마지막 것만 이어서 만듦
+    svc.sync_notices([notice_doc(SCHOLARSHIP), notice_doc(other)])
+    svc.sync_notices([notice_doc(other)])
+    release.set()
+    svc.notice_worker.join(10)
+    assert built == [1, 1] and [d.id for d in svc.notices] == ["notice-CRAWLED:8"]
+    # 작업이 끝난 뒤 온 목록은 새로 처리됨(작업 중 표시가 남지 않음)
+    assert svc.sync_notices([]) is True
+    svc.notice_worker.join(10)
+    assert svc.notices == []
+
+
+def test_failed_rebuild_keeps_the_old_index_and_accepts_the_next_list(index, monkeypatch):
+    import app.main as main
+
+    class BrokenIndex(Index):
+        def __init__(self, *args, **kwargs):
+            raise RuntimeError("boom")
+
+    svc = Service(index, fake_model(QUESTION), fake_model("x"))
+    monkeypatch.setattr(main, "Index", BrokenIndex)
+    svc.sync_notices([notice_doc(SCHOLARSHIP)])
+    svc.notice_worker.join(10)
+    assert svc.index is index and svc.notices == []
+    monkeypatch.setattr(main, "Index", Index)
+    assert svc.sync_notices([notice_doc(SCHOLARSHIP)]) is True
+    svc.notice_worker.join(10)
+    assert [d.id for d in svc.notices] == ["notice-CRAWLED:7"]
