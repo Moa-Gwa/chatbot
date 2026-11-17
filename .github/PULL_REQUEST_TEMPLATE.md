@@ -15,4 +15,4 @@ Closes #
 ## 체크리스트
 - [ ] 대상 브랜치가 `develop`(release/hotfix는 `main`)이다
 - [ ] 커밋 메시지가 Conventional Commits를 따른다
-- [ ] 답변이 검색한 규정·연락처 근거 안에서만 나온다
+- [ ] 답변이 검색한 규정, 연락처 근거 안에서만 나온다
