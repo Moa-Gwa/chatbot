@@ -1,10 +1,22 @@
-# Moa-Gwa Chatbot
+# 모아과 학교 안내 챗봇
 
-가톨릭대학교 규정, 부서 연락처를 근거로 답하는 RAG 챗봇 서비스.
-학생 요청은 BE(로그인 확인, 요청 한도)를 거쳐 이 서비스의 REST API로 전달된다. 클러스터 내부에서만 열린다.
+가톨릭대학교 규정, 홈페이지 안내, 부서 연락처, 최근 공지를 근거로 답하는 RAG 챗봇 서비스. 학생 요청은 BE(로그인 확인, 질문 한도)를 거쳐 이 서비스의 REST API로 전달되며, 클러스터 내부에서만 열림.
 
-- Python, FastAPI, LangGraph
-- 임베딩, 답변 생성: Gemini
+- Python 3.12, FastAPI, LangGraph
+- 임베딩: 로컬 Hugging Face 모델(`dragonkue/multilingual-e5-small-ko`, CPU)
+- 답변 생성: Gemini
+- 벡터 DB 없이 메모리에서 의미 검색과 BM25 키워드 검색을 합침
+
+## 측정 결과
+
+| 항목 | 결과 | 근거 |
+|---|---|---|
+| 검색 정확도(평가 질문 31개) | hit@1 0.94, hit@4 1.00, MRR 0.954 | [decisions.md 3장](docs/decisions.md#3-혼합-검색) |
+| 검색 색인 | 창 11,572개, 512토큰 초과 0개 | [decisions.md 2장](docs/decisions.md#2-조각chunk과-검색용-창window) |
+| 운영 메모리 | 서버 프로세스 849MiB (limits 1536Mi) | [decisions.md 8장](docs/decisions.md#8-운영-자원) |
+| 답변 시간 | 첫 요청 18.1초, 이후 5~8초 | [decisions.md 8장](docs/decisions.md#8-운영-자원) |
+
+모델, 기준값, 창 크기를 고른 비교와 다시 재는 명령은 [docs/decisions.md](docs/decisions.md)에 기록함.
 
 ## 구조
 
@@ -76,3 +88,13 @@ set -a; . ./.env; set +a
 | `CHAT_MODEL` | `gemini-3.5-flash-lite` |
 | `EMBED_MODEL` | `dragonkue/multilingual-e5-small-ko`(바꾸면 임베딩 파일을 다시 만들어야 함) |
 | `CHATBOT_INTERNAL_TOKEN` | 없음(없으면 채팅 요청 401. 로컬 개발도 아무 값이나 지정) |
+
+## 배포
+
+| 단계 | 내용 |
+|---|---|
+| PR | pytest(가짜 임베딩, 가짜 모델) |
+| `main` 머지 | `linux/arm64` 이미지를 비공개 `ghcr.io/moa-gwa/chatbot:sha-<커밋>`으로 올리고 infra 저장소의 이미지 태그를 바꿈 |
+| 운영 반영 | Argo CD가 k3s에 배포. Service `chatbot:8000`만 있고 Ingress는 없어 BE만 호출함 |
+
+임베딩 파일은 이미지에 포함되고 운영은 읽기만 함. torch는 CPU 빌드만 설치함. 브랜치와 커밋 규칙은 [CONTRIBUTING.md](CONTRIBUTING.md).
